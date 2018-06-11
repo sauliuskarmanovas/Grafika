@@ -1,0 +1,806 @@
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <title>Maze</title>
+    <script type="text/javascript" src="libs/Three.js"></script>
+    <script type="text/javascript" src="libs/jquery-1.9.0.js"></script>
+    <script type="text/javascript" src="libs/stats.js"></script>
+    <script type="text/javascript" src="libs/dat.gui.js"></script>
+    <script type="text/javascript" src="libs/TrackballControls.js"></script>
+    <style>
+        body {
+            /* set margin to 0 and overflow to hidden, to go fullscreen */
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+<div id="Stats-output">
+</div>
+<!-- Div which will hold the Output -->
+<div id="WebGL-output">
+</div>
+
+
+<!-- Javascript code that runs our Three.js examples -->
+<script type="text/javascript">
+    // once everything is loaded, we run our Three.js stuff.
+
+    $(function () {
+        var deleteMe = 0;
+        var clock = new THREE.Clock();
+        var stats = initStats();
+        var startTime = clock.startTime;
+
+        // create a scene, that will hold all our elements such as objects, cameras and lights.
+        var scene = new THREE.Scene();
+
+        // create a camera, which defines where we're looking at.
+        var cameraSwitch = false;
+        var camera = new THREE.PerspectiveCamera(45, window.innerWidth/2 / window.innerHeight, 0.1, 1000);
+        var camera2 = new THREE.PerspectiveCamera(45,window.innerWidth/2 / window.innerHeight, 0.1, 1000);
+        // create a render and set the size
+        var webGLRenderer = new THREE.WebGLRenderer();
+        webGLRenderer.setClearColorHex(0xEEEEEE, 1.0);
+        webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+        webGLRenderer.shadowMapEnabled = true;
+
+        var diagVector = new THREE.Vector3(1,1,1);
+        diagVector.normalize();
+        var cameraHelper = new THREE.Object3D();
+        cameraHelper.position.set(0,0,0);
+        cameraHelper.translateOnAxis(diagVector, 2+3);
+        console.log("cameraHelper",cameraHelper);
+        camera.position.set(cameraHelper.position);
+        camera.lookAt(0,0,0);
+
+//        var cube = createMesh(new THREE.CubeGeometry(0.25,0.25,0.25),0,0);
+//        cube.position.set(0,2,0);
+//        scene.add(cube);
+//        cube = createMesh(new THREE.CubeGeometry(0.25,0.25,0.25),0.25,0.25);
+//        cube.position.set(0.25,2,0.25);
+//        scene.add(cube);
+//        cube = createMesh(new THREE.CubeGeometry(0.25,0.25,0.25),0.25,0);
+//        cube.position.set(0.25,2,0);
+//        scene.add(cube);
+//        cube = createMesh(new THREE.CubeGeometry(0.25,0.25,0.25),0,0.25);
+//        cube.position.set(0,2,0.25);
+//        scene.add(cube);
+
+        var planeGeometry = new THREE.PlaneGeometry( 32,32,20,20 );
+        var plane = createMeshPlane(planeGeometry);
+        plane.rotation.x=-Math.PI/2;
+        plane.position.y = 0;
+        scene.add( plane );
+
+
+
+        createMaze("maze.txt");
+
+        var testLight = new THREE.SpotLight(0xffffff, 0.5, 200);
+        testLight.position.set(10,30, 10);
+        testLight.lookAt(new THREE.Vector3(0,0,0));
+        scene.add(testLight);
+        testLight = new THREE.SpotLight(0xffffff, 0.5, 200);
+        testLight.position.set(-10,30, -10);
+        testLight.lookAt(new THREE.Vector3(0,0,0));
+        scene.add(testLight);
+        var pointLight = new THREE.PointLight(0xffffff, 1, 1,2);
+        var m = new THREE.MeshBasicMaterial();
+        var pattern =  THREE.ImageUtils.loadTexture("assets/textures/ball.jpg");
+        pattern.wrapS = THREE.RepeatWrapping;
+        pattern.wrapT = THREE.RepeatWrapping;
+        m.map = pattern;
+        var lightSphere = new THREE.Mesh(new THREE.SphereGeometry(0.5,20,20),
+                m);
+//        lightSphere.material.color.r=0.7;
+//        lightSphere.material.color.g=0.7;
+//        lightSphere.material.color.b=0.7;
+        console.log(lightSphere);
+        scene.add(lightSphere);
+        //pointLight.bound;
+        //pointLight.position.set(0, 1, -10);
+        scene.add(pointLight);
+        var facesArray = [];
+        var icosahedronG = new THREE.IcosahedronGeometry(0.5, 2);
+        var icosahedronM = new THREE.MeshBasicMaterial();
+        icosahedronM.wireframe = true;
+        icosahedronM.color.setHex(0xffaaaa);
+        var icosahedron = THREE.SceneUtils.createMultiMaterialObject(icosahedronG, [icosahedronM]);
+        icosahedron.position.set(pos(11),1.5,pos(11));
+        scene.add(icosahedron);
+        var l1 = new THREE.PointLight(0xffffff, 1, 4,2);
+        l1.position.set(pos(11),3,pos(11));
+        scene.add(l1);
+        l1 = new THREE.PointLight(0xffffff, 1, 4,2);
+        l1.position.set(pos(1),2,pos(1));
+        scene.add(l1);
+        l1 = new THREE.PointLight(0xffffff, 1, 4,2);
+        l1.position.set(pos(9),2,pos(3));
+        scene.add(l1);
+        l1 = new THREE.PointLight(0xffffff, 1, 4,2);
+        l1.position.set(pos(7),2,pos(7));
+        scene.add(l1);
+        l1 = new THREE.PointLight(0xffffff, 1, 4,2);
+        l1.position.set(pos(11),2,pos(7));
+        scene.add(l1);
+        var a = new THREE.IcosahedronGeometry();
+
+        var distance = 1;
+        var distanceOld = distance;
+        var faces = icosahedronG.faces;
+        var vertices = icosahedronG.vertices;
+        for(var i = 0; i < faces.length; i++){
+            var face = faces[i];
+            var geometry = new THREE.Geometry();
+
+            var v1 = vertices[face.a], v2 = vertices[face.b], v3 = vertices[face.c];
+            geometry.vertices.push(
+                new THREE.Vector3( v1.x * distance,  v1.y * distance, v1.z * distance ),
+                new THREE.Vector3( v2.x * distance,  v2.y * distance, v2.z * distance ),
+                new THREE.Vector3( v3.x * distance,  v3.y * distance, v3.z * distance )
+            );
+            geometry.faces.push( new THREE.Face3( 0, 1, 2 ) );
+
+            geometry.computeBoundingSphere();
+
+            geometry.computeFaceNormals();
+            var mesh = createMeshForIcos(geometry);
+            mesh.position.x = icosahedron.position.x;
+            mesh.position.y = icosahedron.position.y;
+            mesh.position.z = icosahedron.position.z;
+            mesh.up = new THREE.Vector3(geometry.faces[0].normal.x,geometry.faces[0].normal.y,geometry.faces[0].normal.z);
+            scene.add(mesh);
+            facesArray.push(mesh);
+           // mesh.scale
+        }
+
+
+
+
+        // add the output of the renderer to the html element
+        $("#WebGL-output").append(webGLRenderer.domElement);
+
+        // call the render function
+        var step = 0;
+
+        // setup the control gui
+        var controls = new function () {
+            //console.log(cube.children[0].geometry);
+
+            // we need the first child, since it's a multimaterial
+            this.dollyZoom = 45;
+            this.outputObjects = function() {
+                console.log(camera);
+            }
+
+        };
+
+      var gui = new dat.GUI();
+        gui.add(controls, 'dollyZoom').min(5).max(140);
+        gui.add(controls, 'outputObjects');
+        render();
+
+
+        function createMaze(file)
+        {
+            var rawFile = new XMLHttpRequest();
+            rawFile.open("GET", file, false);
+            rawFile.onreadystatechange = function ()
+            {
+
+                if(rawFile.readyState === 4)
+                {
+                    if(rawFile.status === 200 || rawFile.status == 0)
+                    {
+                        var allText = rawFile.responseText;
+                        var numArray = allText.split(/[ \n]/);
+                        var mIndex = 0;
+                        for(mIndex = 0; mIndex < numArray.length/4; mIndex++){
+                            var x1 = numArray[4*mIndex] / 10,
+                                y1 = numArray[(4*mIndex)+1] / 10,
+                                x2 = numArray[(4*mIndex)+2] / 10,
+                                y2 = numArray[(4*mIndex)+3] / 10;
+
+                            //console.log("x1:"+x1+" y1:"+y1+" x2:"+x2+" y2:"+y2);
+                            if(x1 == x2){
+                                //horizontalios
+                                if(y1 > y2){
+                                    var temp = y1;
+                                    y1= y2;
+                                    y2=temp;
+                                }
+                                splitVerticalLine(x1, x2, y1, y2, numArray, mIndex);
+                            }
+                            if(y1==y2){
+                              //vertikalios
+                                if(x1 > x2){
+                                    var temp = x1;
+                                    x1= x2;
+                                    x2=temp;
+                                }
+
+                                splitHorizontalLine(x1, x2, y1, y2, numArray, mIndex);
+                            }
+                        }
+
+                    }
+                }
+
+
+
+            }
+            rawFile.send(null);
+        }
+
+        function splitVerticalLine(x1, x2, y1, y2, numArray, upperBound) {
+            var split = false;
+            var jyBest = y2;
+            for(var j = 0; j < upperBound; j++){
+                var jx1 = numArray[4*j] / 10,
+                    jy1 = numArray[(4*j)+1] / 10,
+                    jx2 = numArray[(4*j)+2] / 10,
+                    jy2 = numArray[(4*j)+3] / 10;
+
+                if(jx1 > jx2){
+                    var temp = jx1;
+                    jx1= jx2;
+                    jx2=temp;
+                }
+
+                if(jy1 > jy2){
+                    var temp = jy1;
+                    jy1= jy2;
+                    jy2=temp;
+                }
+
+
+                if(jy1 == jy2 && jx1 <= x1 && x1 <= jx2 && y1 <= jy1 && jy1 <= y2 && jy1 <= jyBest ){
+                    jyBest = jy1;
+                    split = true;
+                }
+                if(jx1 == jx2 && jx2 == x1 && y2 >= jy1 && jy1 >= y1 && jy1 <= jyBest ){
+                    jyBest = jy1;
+                    split = true;
+                }
+                if(jx1 == jx2 && jx2 == x1 && y1 <= jy2 && jy2 <= y2 && jy2 <= jyBest){
+                    jyBest = jy2;
+                    split = true;
+                }
+            }
+            if(split) {
+                if(Math.abs(jyBest - y1) > 0.2){
+                    var box = new THREE.CubeGeometry(0.2, 1, Math.abs(jyBest - y1));
+                    var boxMesh = createMesh(box,(x2+x1)/2 - 16.2,((jyBest - 0.2)+y1)/2 - 16.2);
+                    boxMesh.position.x = (x2+x1)/2 - 16.2;
+                    boxMesh.position.y = 0.5;
+                    boxMesh.position.z = ((jyBest - 0.2)+y1)/2 - 16.2;
+                    scene.add(boxMesh);
+                }
+                if(y2 != jyBest)
+                    splitVerticalLine(x1,x2, jyBest + 0.2, y2,numArray, upperBound);
+            } else {
+                var box = new THREE.CubeGeometry(0.2, 1, Math.abs(y2 - y1) + 0.2);
+                var boxMesh = createMesh(box,(x2+x1)/2 - 16.2,(y1+y2)/2 - 16.2);
+                boxMesh.position.x = (x2+x1)/2 - 16.2;
+                boxMesh.position.y = 0.5;
+                boxMesh.position.z = (y1+y2)/2 - 16.2;
+                scene.add(boxMesh);
+            }
+        }
+
+        function splitHorizontalLine(x1, x2, y1, y2, numArray, upperBound) {
+
+            var split = false;
+            var jxBest = x2;
+            for(var j = 0; j < upperBound; j++){
+                var jx1 = numArray[4*j] / 10,
+                    jy1 = numArray[(4*j)+1] / 10,
+                    jx2 = numArray[(4*j)+2] / 10,
+                    jy2 = numArray[(4*j)+3] / 10;
+
+                if(jy1 > jy2){
+                    var temp = jy1;
+                    jy1= jy2;
+                    jy2=temp;
+                }
+                if(jx1 > jx2){
+                    var temp = jx1;
+                    jx1= jx2;
+                    jx2=temp;
+                }
+
+                if(jx1 == jx2 && jy1 <= y1 && y1 <= jy2 && x1 <= jx1 && jx1 <= x2 && jx1 <= jxBest ){
+                    jxBest = jx1;
+                    split = true;
+                } else if(jy1 == jy2 && jy2 == y1 && jx1 <= x2 && x1 <= jx1 && jx1 <= jxBest ){
+                    jxBest = jx1;
+                    split = true;
+                } else if(jy1 == jy2 && jy2 == y1 && jx2 >= x1 && x2 >= jx2 && jx2 <= jxBest){
+                    jxBest = jx2;
+                    split = true;
+                }
+
+            }
+            if(split) {
+                if(Math.abs(jxBest - x1) > 0.2){
+                    var box = new THREE.CubeGeometry(Math.abs(jxBest - x1), 1, 0.2);
+                    var boxMesh = createMesh(box,((jxBest - 0.2)+x1)/2 - 16.2,(y1+y2)/2 - 16.2);
+                    boxMesh.position.x = ((jxBest - 0.2)+x1)/2 - 16.2;
+                    boxMesh.position.y = 0.5;
+                    boxMesh.position.z = (y1+y2)/2 - 16.2;
+                    scene.add(boxMesh);
+                }
+                if(x2 != jxBest)
+                    splitHorizontalLine(jxBest + 0.2, x2, y1, y2,numArray, upperBound);
+            } else {
+                var box = new THREE.CubeGeometry(Math.abs(x2 - x1) + 0.2, 1, 0.2);
+                var boxMesh = createMesh(box,(x2+x1)/2 - 16.2,(y2+y1)/2 - 16.2);
+                boxMesh.position.x = (x2+x1)/2 - 16.2;
+                boxMesh.position.y = 0.5;
+                boxMesh.position.z = (y1+y2)/2 - 16.2;
+                scene.add(boxMesh);
+            }
+
+
+
+        }
+
+        function createMesh(geom,sX,sY) {
+            function assignUVs(geometry) {
+
+                geometry.faceVertexUvs[0] = [];
+
+                geometry.faces.forEach(function(face) {
+
+                    var components = ['x', 'y', 'z'].sort(function(a, b) {
+                        return Math.abs(face.normal[a]) > Math.abs(face.normal[b]);
+                    });
+
+                    var v1 = geometry.vertices[face.a];
+                    var v2 = geometry.vertices[face.b];
+                    var v3 = geometry.vertices[face.c];
+
+                    geometry.faceVertexUvs[0].push([
+                        new THREE.Vector2(v1[components[0]], v1[components[1]]),
+                        new THREE.Vector2(v2[components[0]], v2[components[1]]),
+                        new THREE.Vector2(v3[components[0]], v3[components[1]])
+                    ]);
+
+                });
+
+                geometry.uvsNeedUpdate = true;
+            }
+            assignUVs(geom);
+            var m0 = new THREE.MeshBasicMaterial();
+            var p0 =  THREE.ImageUtils.loadTexture("assets/textures/0.png");
+            p0.wrapS = THREE.RepeatWrapping;
+            p0.wrapT = THREE.RepeatWrapping;
+            m0.map = p0;
+
+            var m1 = new THREE.MeshBasicMaterial();
+            var p1 =  THREE.ImageUtils.loadTexture("assets/textures/1.png");
+            p1.wrapS = THREE.RepeatWrapping;
+            p1.wrapT = THREE.RepeatWrapping;
+            m1.map = p1;
+
+            var m2 = new THREE.MeshBasicMaterial();
+            var p2 =  THREE.ImageUtils.loadTexture("assets/textures/2.png");
+            p2.wrapS = THREE.RepeatWrapping;
+            p2.wrapT = THREE.RepeatWrapping;
+            m2.map = p2;
+
+            var m3 = new THREE.MeshBasicMaterial();
+            var p3 =  THREE.ImageUtils.loadTexture("assets/textures/3.png");
+            p3.wrapS = THREE.RepeatWrapping;
+            p3.wrapT = THREE.RepeatWrapping;
+            m3.map = p3;
+
+            var m4 = new THREE.MeshBasicMaterial();
+            var p4 =  THREE.ImageUtils.loadTexture("assets/textures/4.png");
+            p4.wrapS = THREE.RepeatWrapping;
+            p4.wrapT = THREE.RepeatWrapping;
+            m4.map = p4;
+
+            var m5 = new THREE.MeshBasicMaterial();
+            var p5 =  THREE.ImageUtils.loadTexture("assets/textures/5.png");
+            p5.wrapS = THREE.RepeatWrapping;
+            p5.wrapT = THREE.RepeatWrapping;
+            m5.map = p5;
+            p0.flipY = false;
+            p1.flipY = false;
+            p2.flipY = false;
+            p3.flipY = false;
+            p4.flipY = false;
+            p5.flipY = false;
+
+            p0.offset.y=sY;
+            p1.offset.y=sY;
+            p2.offset.x=sX;
+            p2.offset.y=sY;
+            p3.offset.y=sY;
+            p3.offset.x=sX;
+            p4.offset.x=sX;
+            p5.offset.x=sX;
+            //m0.map.offset=new THREE.Vector2(1.1);
+            var meshMaterial = new THREE.MeshFaceMaterial([m0,m1,m2,m3,m4,m5]);
+            //meshMaterial.materials[0].map.offset.x +=0.1;
+
+            deleteMe++;
+            meshMaterial.side = THREE.FrontSide;
+            var wireFrameMat = new THREE.MeshBasicMaterial();
+            wireFrameMat.wireframe = true;
+
+            // create a multimaterial
+            var mesh = THREE.SceneUtils.createMultiMaterialObject(geom, [meshMaterial]);
+            return mesh;
+        }
+
+        function createMeshPlane(geom) {
+
+            // assign two materials
+            var meshMaterial = new THREE.MeshPhongMaterial();
+            meshMaterial.color.r = 0xaa/0xff;
+            meshMaterial.color.g = 0xaa/0xff;
+            meshMaterial.color.b = 0xaa/0xff;
+            meshMaterial.side = THREE.FrontSide;
+            var wireFrameMat = new THREE.MeshBasicMaterial();
+            wireFrameMat.wireframe = true;
+            wireFrameMat.color.setRGB(0,0,0);
+
+            // create a multimaterial
+            var mesh = THREE.SceneUtils.createMultiMaterialObject(geom,[meshMaterial]);
+
+            return mesh;
+        }
+
+        function createMeshForIcos(geom) {
+
+            // assign two materials
+            var meshMaterialFront = new THREE.MeshPhongMaterial();
+            meshMaterialFront.side = THREE.FrontSide;
+            //meshMaterialFront.wireframe = true;
+            meshMaterialFront.color.r = 0;
+            meshMaterialFront.color.g = 0;
+            meshMaterialFront.color.b = 1;
+            var meshMaterialBack = new THREE.MeshPhongMaterial();
+            meshMaterialBack.side = THREE.BackSide;
+            meshMaterialBack.color.r = 0xff/0xff;
+            meshMaterialBack.color.g = 0xd0/0xff;
+            meshMaterialBack.color.b = 0x30/0xff;
+
+            // create a multimaterial
+            var mesh = THREE.SceneUtils.createMultiMaterialObject(geom,[meshMaterialFront,meshMaterialBack]);
+
+            return mesh;
+        }
+
+        function createFaces(distance, rotation){
+            for(var i = 0; i < facesArray.length; i++){
+                /*for(var k =0; k< 2; k++){
+
+                    for (var j = 0; j < 3; j++){
+                        facesArray[i].children[k].geometry.vertices[j].x *=(distance/distanceOld);
+                        facesArray[i].children[k].geometry.vertices[j].y *=(distance/distanceOld);
+                        facesArray[i].children[k].geometry.vertices[j].z *=(distance/distanceOld);
+
+                    }
+                    facesArray[i].children[k].geometry.verticesNeedUpdate = true;
+                }
+                */
+                if(0<=rotation && rotation <=0.5){
+                    facesArray[i].rotateX(Math.PI/180);
+                } else {
+                    facesArray[i].rotateX(-Math.PI/180);
+                }
+
+                if(0.15<=rotation && rotation <=0.65){
+                    facesArray[i].rotateY(Math.PI/180);
+                } else {
+                    facesArray[i].rotateY(-Math.PI/180);
+                }
+
+                if(0.35<=rotation && rotation <=0.85){
+                    facesArray[i].rotateZ(Math.PI/180);
+                } else {
+                    facesArray[i].rotateZ(-Math.PI/180);
+                }
+                facesArray[i].children[0].geometry.normalsNeedUpdate = true;
+                facesArray[i].children[0].geometry.computeFaceNormals();
+                var normal = facesArray[i].children[0].geometry.faces[0].normal;
+                facesArray[i].position.x = icosahedron.position.x;
+                facesArray[i].position.y = icosahedron.position.y;
+                facesArray[i].position.z = icosahedron.position.z;
+                facesArray[i].translateOnAxis(facesArray[i].up, distance);
+                //facesArray[i].position.set();
+
+            }
+
+            if(0<=rotation && rotation <=0.5){
+                icosahedron.rotateX(Math.PI/180);
+            } else {
+                icosahedron.rotateX(-Math.PI/180);
+            }
+
+            if(0.15<=rotation && rotation <=0.65){
+                icosahedron.rotateY(Math.PI/180);
+            } else {
+                icosahedron.rotateY(-Math.PI/180);
+            }
+
+            if(0.35<=rotation && rotation <=0.85){
+                icosahedron.rotateZ(Math.PI/180);
+            } else {
+                icosahedron.rotateZ(-Math.PI/180);
+            }
+
+            //console.log(distance/distanceOld);
+            //distanceOld = distance;
+            //console.log(facesArray[0].children[0].geometry.faces[0].normal);
+        }
+        function pos(cell){
+            return (cell-10.5)*32/20;
+        }
+
+        function pathLight(deltaTime){
+            lightSphere.rotation.set(0,0,0,"XYZ");
+
+            function cameraAngle(number) {
+                if(number == 0)
+                    camera2.position.set(pointLight.position.x + 5,pointLight.position.y + 5,pointLight.position.z);
+                else if(number == 1)
+                    camera2.position.set(pointLight.position.x,pointLight.position.y + 5,pointLight.position.z + 5);
+                else if(number == 2)
+                    camera2.position.set(pointLight.position.x - 5,pointLight.position.y + 5,pointLight.position.z);
+                else if(number == 3)
+                    camera2.position.set(pointLight.position.x,pointLight.position.y + 5,pointLight.position.z - 5);
+                camera2.lookAt(new THREE.Vector3(pointLight.position.x, pointLight.position.y, pointLight.position.z));
+            }
+            if (deltaTime >= 0) {
+                if (deltaTime < 2) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(deltaTime) - pos(0)));
+                    pointLight.position.set(pos(10), 0.5, pos(deltaTime));
+                } else if (deltaTime < 4) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(-(2*(pos(10 + deltaTime - 2) - pos(10 - 2))));
+                    pointLight.position.set(pos(10 + deltaTime - 2), 0.5, pos(2));
+                } else if (deltaTime < 5) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(deltaTime - 4 + 2) - pos(-4 + 2)));
+                    pointLight.position.set(pos(12), 0.5, pos(deltaTime - 4 + 2));
+                } else if (deltaTime < 6) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(-2*(pos(7 + deltaTime) - pos(7)));
+                    pointLight.position.set(pos(7 + deltaTime), 0.5, pos(3));
+                } else if (deltaTime < 7) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(deltaTime - 3) - pos(-3)));
+                    pointLight.position.set(pos(13), 0.5, pos(deltaTime - 3));
+                } else if (deltaTime < 11) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-2*(pos(20 - deltaTime) - pos(20)));
+                    pointLight.position.set(pos(20 - deltaTime), 0.5, pos(4));
+                } else if (deltaTime < 14) {
+                    cameraAngle(1);
+                    lightSphere.rotateX(2*(pos(4 - deltaTime + 11) - pos(4 + 11)));
+                    pointLight.position.set(pos(9), 0.5, pos(4 - deltaTime + 11));
+                } else if (deltaTime < 22) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-(2*(pos(9 - deltaTime + 14) - pos(9 + 14))));
+                    pointLight.position.set(pos(9 - deltaTime + 14), 0.5, pos(1));
+                } else if (deltaTime < 23) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(1 + deltaTime - 22) - pos(1 - 22)));
+                    pointLight.position.set(pos(1), 0.5, pos(1 + deltaTime - 22));
+                } else if (deltaTime < 30) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(-2*((pos(1 + deltaTime - 23) - pos(1 - 23))));
+                    pointLight.position.set(pos(1 + deltaTime - 23), 0.5, pos(2));
+                } else if (deltaTime < 33) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(2 + deltaTime - 30) - pos(2 - 30)));
+                    pointLight.position.set(pos(8), 0.5, pos(2 + deltaTime - 30));
+                } else if (deltaTime < 34) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(-2*((pos(8 + deltaTime - 33) - pos(8 - 33))));
+                    pointLight.position.set(pos(8 + deltaTime - 33), 0.5, pos(5));
+                } else if (deltaTime < 35) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(5 + deltaTime - 34) - pos(5 - 34)));
+                    pointLight.position.set(pos(9), 0.5, pos(5 + deltaTime - 34));
+                } else if (deltaTime < 37) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-2*((pos(9 - deltaTime + 35) - pos(9 + 35))));
+                    pointLight.position.set(pos(9 - deltaTime + 35), 0.5, pos(6));
+                } else if (deltaTime < 38) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(6 + deltaTime - 37) - pos(6 - 37)));
+                    pointLight.position.set(pos(7), 0.5, pos(6 + deltaTime - 37));
+                } else if (deltaTime < 42) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(-2*((pos(7 + deltaTime - 38) - pos(7 - 38))));
+                    pointLight.position.set(pos(7 + deltaTime - 38), 0.5, pos(7));
+                } else if (deltaTime < 44) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(7 + deltaTime - 42) - pos(7 - 42)));
+                    pointLight.position.set(pos(11), 0.5, pos(7 + deltaTime - 42));
+                } else if (deltaTime < 45) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-2*((pos(11 - deltaTime + 44) - pos(11 + 44))));
+                    pointLight.position.set(pos(11 - deltaTime + 44), 0.5, pos(9));
+                } else if (deltaTime < 46) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(9 + deltaTime - 45) - pos(9 - 45)));
+                    pointLight.position.set(pos(10), 0.5, pos(9 + deltaTime - 45));
+                } else if (deltaTime < 48) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-2*((pos(10 - deltaTime + 46) - pos(10 + 46))));
+                    pointLight.position.set(pos(10 - deltaTime + 46), 0.5, pos(10));
+                } else if (deltaTime < 49) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(2*(pos(10 + deltaTime - 48) - pos(10 - 48)));
+                    pointLight.position.set(pos(8), 0.5, pos(10 + deltaTime - 48));
+                }else if (deltaTime < 50) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-2*(pos(8 - deltaTime + 49) - pos(8 - 49)));
+                    pointLight.position.set(pos(8 - deltaTime + 49), 0.5, pos(11));
+                }else if (deltaTime < 52) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(7), 0.5, pos(11 + deltaTime-50));
+                }else if (deltaTime < 54) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(7 - deltaTime + 52), 0.5, pos(13));
+                }else if (deltaTime < 55) {
+                    cameraAngle(1);
+                    lightSphere.rotateX(2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(5), 0.5, pos(12 - deltaTime+55));
+                }else if (deltaTime < 56) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(5 - deltaTime + 55), 0.5, pos(12));
+                }else if (deltaTime < 58) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(4), 0.5, pos(12 + deltaTime-56));
+                }else if (deltaTime < 61) {
+                    cameraAngle(0);
+                    lightSphere.rotateZ(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(4 - deltaTime + 58), 0.5, pos(14));
+                }else if (deltaTime < 64) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(1), 0.5, pos(14 + deltaTime-61));
+                }else if (deltaTime < 69) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(2 * (pos(-deltaTime)));
+                    pointLight.position.set(pos(1 + deltaTime - 64), 0.5, pos(17));
+                }else if (deltaTime < 72) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(6), 0.5, pos(17 + deltaTime-69));
+                }else if (deltaTime < 73) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(2 * (pos(-deltaTime)));
+                    pointLight.position.set(pos(7 + deltaTime - 73), 0.5, pos(20));
+                }
+                else if (deltaTime < 74) {
+                    cameraAngle(1);
+                    lightSphere.rotateX(2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(7), 0.5, pos(20 - deltaTime+73));
+                }
+                else if (deltaTime < 76) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(2 * (pos(-deltaTime)));
+                    pointLight.position.set(pos(7 + deltaTime - 74), 0.5, pos(19));
+                }else if (deltaTime < 77) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(9), 0.5, pos(19 + deltaTime-76));
+                }else if (deltaTime < 79) {
+                    cameraAngle(2);
+                    lightSphere.rotateZ(2 * (pos(-deltaTime)));
+                    pointLight.position.set(pos(11 + deltaTime - 79), 0.5, pos(20));
+                }else if (deltaTime < 80) {
+                    cameraAngle(3);
+                    lightSphere.rotateX(-2*(pos(-deltaTime)));
+                    pointLight.position.set(pos(11), 0.5, pos(20 + deltaTime-79));
+                }
+            }
+        }
+
+        function render() {
+            stats.update();
+            var delta = clock.getDelta();
+            //cube.rotation.y = step += 0.01;
+            var deltaTime = clock.elapsedTime/2;
+            pointLight.position.y = 0.5;
+            pathLight((deltaTime%20)/20*(85*20/15));
+//            camera2.position.set(0,2,-2);
+//            camera2.lookAt(new THREE.Vector3(0,2,0));
+            lightSphere.position.set(pointLight.position.x,
+                                        pointLight.position.y,
+                                        pointLight.position.z);
+            var dist = (deltaTime%20)-15;
+            dist < 0? dist = 0 : dist /= 5;
+            createFaces(dist, (deltaTime%10)/10);
+
+            cameraHelper.position.set(lightSphere.position.x,
+                lightSphere.position.y,lightSphere.position.z);
+            var distance = 4/(Math.tan(controls.dollyZoom/360*Math.PI));
+            var vect = new THREE.Vector3(lightSphere.position.x,
+                15 - lightSphere.position.y,lightSphere.position.z);
+            var dist2 = vect.length();
+            vect.normalize();
+            cameraHelper.translateOnAxis(vect, distance);
+            camera.position.set(cameraHelper.position.x,cameraHelper.position.y,cameraHelper.position.z);
+            camera.lookAt(lightSphere.position);
+            camera.fov = controls.dollyZoom;
+            camera.aspect = window.innerWidth/2 / window.innerHeight;
+            camera2.aspect = window.innerWidth/2 / window.innerHeight;
+            camera2.updateProjectionMatrix();
+            camera.updateProjectionMatrix();
+            ///pointLight.lookAtPosition.set(0,0,pointLight.position.z);
+            pointLight.rotation.set(0,0,0,"XYZ");
+            //trackballControls.update(delta);
+           // console.log(camera.valueOf())
+            // render using requestAnimationFrame
+
+            webGLRenderer.setSize(window.innerWidth, window.innerHeight);
+            var left   = Math.floor( window.innerWidth  * 0 );
+            var top    = Math.floor( window.innerHeight * 0 );
+            var width  = Math.floor( window.innerWidth  * 0.5 );
+            var height = Math.floor( window.innerHeight * 1 );
+
+            webGLRenderer.setViewport( left, top, width, height );
+            webGLRenderer.setScissor( left, top, width, height );
+            webGLRenderer.enableScissorTest(true);
+            webGLRenderer.render(scene, camera2);
+
+            left   = Math.floor( window.innerWidth  * 0.5 );
+            top    = Math.floor( window.innerHeight * 0 );
+            width  = Math.floor( window.innerWidth  * 0.5 );
+            height = Math.floor( window.innerHeight * 1 );
+
+
+            webGLRenderer.setViewport( left, top, width, height );
+            webGLRenderer.setScissor( left, top, width, height );
+            webGLRenderer.enableScissorTest(true);
+
+            webGLRenderer.setClearColor( new THREE.Color( 0.7, 0.7, 0.7 ) );
+            webGLRenderer.render(scene, camera);
+            requestAnimationFrame(render);
+//            if(cameraSwitch)
+//                webGLRenderer.render(scene, camera);
+//            else
+//                webGLRenderer.render(scene, camera2);
+
+        }
+
+        function initStats() {
+
+            var stats = new Stats();
+            stats.setMode(0); // 0: fps, 1: ms
+
+            // Align top-left
+            stats.domElement.style.position = 'absolute';
+            stats.domElement.style.left = '0px';
+            stats.domElement.style.top = '0px';
+
+            $("#Stats-output").append(stats.domElement);
+
+            return stats;
+        }
+    });
+
+
+</script>
+</body>
+</html>
